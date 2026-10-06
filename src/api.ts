@@ -1,58 +1,80 @@
-import { randomUUID } from "node:crypto";
-import path from "node:path";
-import { Client, Connection } from "@temporalio/client";
-import express, { type NextFunction, type Request, type Response } from "express";
-import type { DemoStatus } from "./types";
-import { demoWorkflow } from "./workflows";
+import express from 'express';
+import path from 'path';
+import { Connection, Client } from '@temporalio/client';
+import {
+  waitlistOutreachWorkflow,
+  getStateQuery,
+  acceptOfferSignal,
+  declineOfferSignal,
+} from './workflows';
+import type { SlotDetails, OutreachState } from './types';
 
 const app = express();
 app.use(express.json());
-app.use(express.static(path.join(process.cwd(), "public")));
+app.use(express.static(path.join(__dirname, '../public')));
 
-let clientPromise: Promise<Client> | undefined;
-function getClient(): Promise<Client> {
-  clientPromise ??= Connection.connect({
-    address: process.env.TEMPORAL_ADDRESS ?? "localhost:7233",
-  }).then((connection) => new Client({ connection, namespace: "default" }));
-  return clientPromise;
+async function createClient(): Promise<Client> {
+  const connection = await Connection.connect({ address: 'localhost:7233' });
+  return new Client({ connection });
 }
 
-app.post("/api/demo", async (_request, response) => {
-  const requestId = randomUUID();
-  const client = await getClient();
-  await client.workflow.start(demoWorkflow, {
-    workflowId: requestId,
-    taskQueue: "assessment-starter",
-    args: [requestId],
-  });
-  response.status(201).json({ requestId });
-});
+app.post('/api/start-outreach', async (req, res) => {
+  try {
+    const { demoMode, ...slot } = req.body as SlotDetails & { demoMode: boolean };
+    const workflowId = `outreach-${Date.now()}`;
+    const client     = await createClient();
 
-app.get("/api/demo/:requestId", async (request, response) => {
-  const client = await getClient();
-  const status = await client.workflow
-    .getHandle(request.params.requestId)
-    .query<DemoStatus>("getDemoStatus");
-  response.json(status);
-});
-
-app.post("/api/demo/:requestId/continue", async (request, response) => {
-  const client = await getClient();
-  await client.workflow
-    .getHandle(request.params.requestId)
-    .signal("continueDemo");
-  response.status(202).json({ accepted: true });
-});
-
-app.use(
-  (error: unknown, _request: Request, response: Response, _next: NextFunction) => {
-    console.error(error);
-    response.status(500).json({
-      error: error instanceof Error ? error.message : "Unexpected error",
+    await client.workflow.start(waitlistOutreachWorkflow, {
+      taskQueue: 'assessment-starter',
+      workflowId,
+      args: [slot, demoMode ?? false],
     });
-  },
-);
 
-const port = Number(process.env.PORT ?? 3000);
-app.listen(port, () => console.log(`Starter is available at http://localhost:${port}`));
+    res.json({ workflowId });
+  } catch (err) {
+    console.error('start-outreach error:', err);
+    res.status(500).json({ error: String(err) });
+  }
+});
 
+app.get('/api/status/:workflowId', async (req, res) => {
+  try {
+    const client = await createClient();
+    const handle = client.workflow.getHandle(req.params.workflowId);
+    const state  = await handle.query(getStateQuery);
+    res.json(state);
+  } catch (err) {
+    console.error('status error:', err);
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+app.post('/api/respond/:workflowId/:clientId/:response', async (req, res) => {
+  const { workflowId, clientId, response } = req.params;
+  try {
+    const client = await createClient();
+    const handle = client.workflow.getHandle(workflowId);
+    const state  = await handle.query(getStateQuery) as OutreachState;
+
+    if (state.status === 'filled') {
+      const winner = state.clients.find(c => c.client.id === clientId && c.status === 'accepted');
+      if (!winner) return res.json({ success: false, reason: 'slot_taken' });
+    }
+
+    if (state.currentOfferId !== clientId) {
+      return res.json({ success: false, reason: 'offer_expired' });
+    }
+
+    if (response === 'accept')       await handle.signal(acceptOfferSignal, clientId);
+    else if (response === 'decline') await handle.signal(declineOfferSignal, clientId);
+    else return res.status(400).json({ error: 'Invalid response' });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('respond error:', err);
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Juniper Salon running at http://localhost:${PORT}`));

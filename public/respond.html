@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Juniper Salon — Appointment Opening</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #FAF7F2;
+      color: #2C2A26;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 32px 28px;
+      max-width: 380px;
+      width: 100%;
+      border: 1px solid #E8E4DE;
+      text-align: center;
+    }
+    .salon { font-size: 12px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: #3D6B4F; margin-bottom: 6px; }
+    .greeting { font-size: 21px; font-weight: 600; line-height: 1.3; margin-bottom: 22px; }
+    .offer-box { background: #FAF7F2; border-radius: 10px; padding: 16px; margin-bottom: 18px; text-align: left; }
+    .offer-row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 7px; }
+    .offer-row:last-child { margin-bottom: 0; }
+    .ol { color: #6B6861; }
+    .ov { font-weight: 500; }
+    .expiry { font-size: 13px; color: #C4782A; margin-bottom: 22px; }
+    .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .btn-accept { padding: 14px; background: #3D6B4F; color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; }
+    .btn-accept:active { background: #2F5540; }
+    .btn-decline { padding: 14px; background: #F2EFE9; color: #6B6861; border: none; border-radius: 10px; font-size: 16px; font-weight: 500; cursor: pointer; }
+    .conf { padding: 12px 0; }
+    .conf-icon { font-size: 44px; margin-bottom: 10px; }
+    .conf-title { font-size: 20px; font-weight: 600; margin-bottom: 6px; }
+    .conf-text { font-size: 14px; color: #6B6861; line-height: 1.55; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div id="offer-view">
+    <div class="salon">Juniper Salon</div>
+    <div class="greeting" id="greeting">An earlier appointment is available for you.</div>
+    <div class="offer-box">
+      <div class="offer-row"><span class="ol">Service</span><span class="ov" id="o-service">—</span></div>
+      <div class="offer-row"><span class="ol">Stylist</span><span class="ov" id="o-stylist">—</span></div>
+      <div class="offer-row"><span class="ol">Date</span><span class="ov" id="o-date">—</span></div>
+      <div class="offer-row"><span class="ol">Time</span><span class="ov" id="o-time">—</span></div>
+    </div>
+    <div class="expiry">This offer expires in 15 minutes.</div>
+    <div class="btn-row">
+      <button class="btn-accept" onclick="respond('accept')">Accept</button>
+      <button class="btn-decline" onclick="respond('decline')">Decline</button>
+    </div>
+  </div>
+
+  <div id="accepted-view" class="hidden">
+    <div class="conf">
+      <div class="conf-icon">✓</div>
+      <div class="conf-title" style="color:#3D6B4F">You are confirmed!</div>
+      <div class="conf-text">Your appointment is booked. We look forward to seeing you at Juniper Salon.</div>
+    </div>
+  </div>
+
+  <div id="declined-view" class="hidden">
+    <div class="conf">
+      <div class="conf-icon">👋</div>
+      <div class="conf-title">No problem</div>
+      <div class="conf-text">Thanks for letting us know. We will keep you on the waitlist for future openings.</div>
+    </div>
+  </div>
+
+  <div id="taken-view" class="hidden">
+    <div class="conf">
+      <div class="conf-icon">⚡</div>
+      <div class="conf-title">Just missed it</div>
+      <div class="conf-text">Someone else just claimed this slot. We will reach out when another opening comes up.</div>
+    </div>
+  </div>
+
+  <div id="expired-view" class="hidden">
+    <div class="conf">
+      <div class="conf-icon">⏰</div>
+      <div class="conf-title">Offer expired</div>
+      <div class="conf-text">This offer has already expired. We will notify you about future openings.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const p = new URLSearchParams(window.location.search);
+  const workflowId = p.get('workflowId');
+  const clientId   = p.get('clientId');
+  const name       = p.get('clientName');
+  const service    = p.get('service');
+  const stylist    = p.get('stylist');
+  const date       = p.get('date');
+  const time       = p.get('time');
+
+  if (name)    document.getElementById('greeting').textContent = `Hi ${name}, an earlier appointment is available for you.`;
+  if (service) document.getElementById('o-service').textContent = service;
+  if (stylist) document.getElementById('o-stylist').textContent = stylist;
+  if (date) {
+    const d = new Date(date + 'T12:00:00');
+    document.getElementById('o-date').textContent = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  }
+  if (time) {
+    const t = new Date('2000-01-01T' + time);
+    document.getElementById('o-time').textContent = t.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  }
+
+  function showView(id) {
+    document.getElementById('offer-view').classList.add('hidden');
+    document.getElementById(id).classList.remove('hidden');
+  }
+
+  async function respond(answer) {
+    try {
+      const res  = await fetch(`/api/respond/${workflowId}/${clientId}/${answer}`, { method: 'POST' });
+      const data = await res.json();
+      if (!data.success) {
+        showView(data.reason === 'slot_taken' ? 'taken-view' : 'expired-view');
+      } else {
+        showView(answer === 'accept' ? 'accepted-view' : 'declined-view');
+      }
+    } catch (e) {
+      alert('Something went wrong. Please try again.');
+    }
+  }
+</script>
+</body>
+</html>

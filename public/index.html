@@ -1,33 +1,567 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Temporal assessment starter</title>
-    <link rel="stylesheet" href="/styles.css" />
-  </head>
-  <body>
-    <main>
-      <p class="eyebrow">Temporal assessment starter</p>
-      <h1>Your environment is connected.</h1>
-      <p class="intro">
-        This neutral demonstration starts a Workflow, waits durably for a
-        Signal, and then completes. Replace it with the experience your
-        customer needs.
-      </p>
-      <section class="card">
-        <h2 id="phase">Ready</h2>
-        <p id="message">Start the demonstration to verify the setup.</p>
-        <button id="start">Start demo Workflow</button>
-        <button id="continue" hidden>Send continue Signal</button>
-        <p class="request-id" id="request-id"></p>
-      </section>
-      <p class="footer">
-        Inspect the execution at
-        <a href="http://localhost:8233" target="_blank">localhost:8233</a>.
-      </p>
-    </main>
-    <script src="/app.js"></script>
-  </body>
-</html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Juniper Salon — Staff Portal</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:        #F0EFEC;
+      --surface:   #FFFFFF;
+      --border:    #DDD9D3;
+      --primary:   #C4562A;
+      --primary-d: #A3431E;
+      --slate:     #2E3440;
+      --slate-l:   #434C5E;
+      --text:      #1E1D1B;
+      --muted:     #7A756E;
+      --green:     #3A7D5A;
+      --green-bg:  #EBF5EE;
+      --amber:     #B97A1A;
+      --amber-bg:  #FDF3E1;
+      --red-bg:    #FCEAE6;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    /* Top nav */
+    .topbar {
+      background: var(--slate);
+      color: white;
+      padding: 0 24px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .topbar-brand { font-size: 15px; font-weight: 600; letter-spacing: 0.3px; }
+    .topbar-sub   { font-size: 12px; opacity: 0.55; margin-top: 1px; }
+    .demo-toggle  {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.75);
+    }
+    .toggle-wrap {
+      position: relative;
+      width: 36px;
+      height: 20px;
+    }
+    .toggle-wrap input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute;
+      inset: 0;
+      background: rgba(255,255,255,0.2);
+      border-radius: 20px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .toggle-slider::before {
+      content: '';
+      position: absolute;
+      width: 14px; height: 14px;
+      left: 3px; top: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+    input:checked + .toggle-slider { background: var(--primary); }
+    input:checked + .toggle-slider::before { transform: translateX(16px); }
 
+    /* Layout */
+    .layout {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 0;
+      min-height: calc(100vh - 52px);
+    }
+    .sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 24px;
+      overflow-y: auto;
+    }
+    .main {
+      padding: 24px;
+      overflow-y: auto;
+    }
+
+    /* Section labels */
+    .section-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    /* Form elements */
+    .field { margin-bottom: 14px; }
+    .field label { display: block; font-size: 12px; font-weight: 600; color: var(--slate-l); margin-bottom: 5px; }
+    .field input, .field select {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      font-size: 14px;
+      color: var(--text);
+      background: #FAFAF8;
+      outline: none;
+    }
+    .field input:focus, .field select:focus { border-color: var(--primary); }
+
+    .btn-start {
+      width: 100%;
+      padding: 11px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 4px;
+      transition: background 0.15s;
+    }
+    .btn-start:hover { background: var(--primary-d); }
+    .btn-reset {
+      width: 100%;
+      padding: 9px;
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    .btn-reset:hover { background: var(--bg); }
+
+    /* Eligible preview */
+    .preview-list { margin-top: 20px; }
+    .preview-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .preview-item:last-child { border-bottom: none; }
+    .preview-num {
+      width: 20px;
+      height: 20px;
+      background: var(--bg);
+      border-radius: 50%;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .preview-name { font-weight: 500; flex: 1; }
+    .preview-tag  { font-size: 11px; color: var(--muted); }
+
+    /* Status header */
+    .status-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 18px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .sh-progress { background: var(--amber-bg); color: var(--amber); }
+    .sh-filled   { background: var(--green-bg); color: var(--green); }
+    .sh-unfilled { background: var(--red-bg);   color: var(--primary); }
+    .status-dot  { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+
+    /* Slot tag */
+    .slot-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--slate);
+      color: rgba(255,255,255,0.85);
+      font-size: 12px;
+      padding: 5px 12px;
+      border-radius: 20px;
+      margin-bottom: 20px;
+    }
+
+    /* Current offer card */
+    .offer-card {
+      background: var(--amber-bg);
+      border: 1px solid #EDD490;
+      border-radius: 10px;
+      padding: 18px 20px;
+      margin-bottom: 16px;
+    }
+    .offer-label  { font-size: 10px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--amber); margin-bottom: 6px; }
+    .offer-name   { font-size: 20px; font-weight: 700; }
+    .offer-detail { font-size: 13px; color: var(--muted); margin-top: 3px; }
+    .offer-timer  { font-size: 13px; font-weight: 600; color: var(--amber); margin-top: 10px; }
+    .offer-link   { font-size: 12px; margin-top: 8px; }
+    .offer-link a { color: var(--green); }
+
+    /* Client grid for declined and waiting */
+    .client-grid { display: flex; flex-direction: column; gap: 0; }
+    .client-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+    }
+    .client-item:last-child { border-bottom: none; }
+    .chip {
+      font-size: 11px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-weight: 600;
+    }
+    .chip-declined  { background: #F5ECE8; color: #8B4020; }
+    .chip-timed-out { background: #EDEBE8; color: #5F5A54; }
+    .chip-waiting   { background: var(--green-bg); color: var(--green); }
+    .chip-accepted  { background: var(--green-bg); color: var(--green); }
+
+    /* Panel cards */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px 20px;
+      margin-bottom: 14px;
+    }
+    .panel-title { font-size: 13px; font-weight: 600; color: var(--slate-l); margin-bottom: 14px; }
+
+    /* Event log */
+    .log-list { display: flex; flex-direction: column; gap: 10px; }
+    .log-entry { display: flex; gap: 12px; align-items: flex-start; }
+    .log-time  { font-size: 11px; color: var(--muted); white-space: nowrap; padding-top: 1px; min-width: 70px; }
+    .log-msg   { font-size: 13px; line-height: 1.5; }
+    .log-dot   { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); flex-shrink: 0; margin-top: 5px; }
+
+    /* Final summary */
+    .final-summary { text-align: center; padding: 24px 0; }
+    .final-icon  { font-size: 40px; margin-bottom: 10px; }
+    .final-title { font-size: 20px; font-weight: 700; }
+    .final-sub   { font-size: 13px; color: var(--muted); margin-top: 5px; line-height: 1.6; }
+
+    /* Empty / placeholder */
+    .empty-state { color: var(--muted); font-size: 13px; padding: 10px 0; }
+    .hidden { display: none; }
+
+    @media (max-width: 640px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { border-right: none; border-bottom: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <div class="topbar-brand">Juniper Salon</div>
+    <div class="topbar-sub">Staff portal</div>
+  </div>
+  <label class="demo-toggle">
+    Demo mode
+    <span class="toggle-wrap">
+      <input type="checkbox" id="demo-toggle" checked>
+      <span class="toggle-slider"></span>
+    </span>
+  </label>
+</div>
+
+<div class="layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div id="slot-form">
+      <div class="section-label">New opening</div>
+      <div class="field">
+        <label>Date</label>
+        <input type="date" id="slot-date">
+      </div>
+      <div class="field">
+        <label>Time</label>
+        <input type="time" id="slot-time">
+      </div>
+      <div class="field">
+        <label>Service</label>
+        <select id="slot-service" onchange="updatePreview()">
+          <option value="Haircut">Haircut</option>
+          <option value="Color">Color</option>
+          <option value="Blowout">Blowout</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Stylist</label>
+        <select id="slot-stylist" onchange="updatePreview()">
+          <option value="Maya">Maya</option>
+          <option value="Carla">Carla</option>
+          <option value="Any">Any</option>
+        </select>
+      </div>
+      <button class="btn-start" onclick="startOutreach()">Notify Waitlist</button>
+
+      <div class="preview-list">
+        <div class="section-label" style="margin-top:20px">Eligible clients</div>
+        <div id="preview-list-inner"><div class="empty-state">Select a service and stylist to preview the contact list.</div></div>
+      </div>
+    </div>
+
+    <div id="slot-summary" class="hidden">
+      <div class="section-label">Active opening</div>
+      <div id="sidebar-slot-detail" style="font-size:14px;line-height:1.7;margin-bottom:16px;"></div>
+      <button class="btn-reset" onclick="resetView()">Start new outreach</button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div id="idle-state">
+      <div style="color:var(--muted);font-size:14px;margin-top:40px;text-align:center;">
+        Fill in the opening details on the left to begin.
+      </div>
+    </div>
+
+    <div id="live-view" class="hidden">
+      <div id="slot-tag" class="slot-tag"></div>
+      <div id="status-header" class="status-header sh-progress">
+        <div class="status-dot"></div>
+        <span id="status-text">Outreach in progress</span>
+      </div>
+
+      <div id="offer-section"></div>
+
+      <div id="contacted-panel" class="panel hidden">
+        <div class="panel-title">Already contacted</div>
+        <div class="client-grid" id="contacted-list"></div>
+      </div>
+
+      <div id="queue-panel" class="panel hidden">
+        <div class="panel-title">Still in queue</div>
+        <div class="client-grid" id="queue-list"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">Event log</div>
+        <div class="log-list" id="event-log"><div class="empty-state">Events will appear here.</div></div>
+      </div>
+    </div>
+  </main>
+
+</div>
+
+<script>
+  // Mirrors the server-side waitlist for the preview
+  const WAITLIST = [
+    { id:'1', name:'Sofia Reyes',  service:'Haircut', stylist:'Maya'  },
+    { id:'2', name:'Jordan Kim',   service:'Color',   stylist:'Any'   },
+    { id:'3', name:'Priya Nair',   service:'Haircut', stylist:'Any'   },
+    { id:'4', name:'Marcus Webb',  service:'Color',   stylist:'Maya'  },
+    { id:'5', name:'Aisha Okafor', service:'Haircut', stylist:'Maya'  },
+    { id:'6', name:'Danny Tran',   service:'Blowout', stylist:'Any'   },
+    { id:'7', name:'Cleo Barnes',  service:'Color',   stylist:'Any'   },
+    { id:'8', name:'Ravi Sharma',  service:'Haircut', stylist:'Any'   },
+  ];
+
+  let workflowId   = null;
+  let pollInterval = null;
+  let currentSlot  = null;
+
+  function getEligible(service, stylist) {
+    return WAITLIST.filter(c =>
+      c.service.toLowerCase() === service.toLowerCase() &&
+      (c.stylist === 'Any' || c.stylist.toLowerCase() === stylist.toLowerCase())
+    );
+  }
+
+  function updatePreview() {
+    const service = document.getElementById('slot-service').value;
+    const stylist = document.getElementById('slot-stylist').value;
+    const el      = document.getElementById('preview-list-inner');
+    const clients = getEligible(service, stylist);
+    if (!clients.length) {
+      el.innerHTML = '<div class="empty-state">No waitlisted clients match this service and stylist.</div>';
+      return;
+    }
+    el.innerHTML = clients.map((c, i) => `
+      <div class="preview-item">
+        <div class="preview-num">${i + 1}</div>
+        <div class="preview-name">${c.name}</div>
+        <div class="preview-tag">${c.service}</div>
+      </div>`).join('');
+  }
+
+  updatePreview();
+
+  async function startOutreach() {
+    const date    = document.getElementById('slot-date').value;
+    const time    = document.getElementById('slot-time').value;
+    const service = document.getElementById('slot-service').value;
+    const stylist = document.getElementById('slot-stylist').value;
+    const demo    = document.getElementById('demo-toggle').checked;
+
+    if (!date || !time) { alert('Please enter a date and time.'); return; }
+
+    currentSlot = { date, time, service, stylist };
+
+    try {
+      const res  = await fetch('/api/start-outreach', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ ...currentSlot, demoMode: demo }),
+      });
+      const data = await res.json();
+      workflowId = data.workflowId;
+
+      document.getElementById('slot-form').classList.add('hidden');
+      document.getElementById('slot-summary').classList.remove('hidden');
+      document.getElementById('idle-state').classList.add('hidden');
+      document.getElementById('live-view').classList.remove('hidden');
+
+      const d       = new Date(date + 'T' + time);
+      const dateStr = d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+      const timeStr = d.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' });
+      document.getElementById('slot-tag').textContent = `${service} · ${stylist} · ${dateStr} ${timeStr}`;
+      document.getElementById('sidebar-slot-detail').innerHTML =
+        `<strong>${service}</strong> with <strong>${stylist}</strong><br>${dateStr} at ${timeStr}` +
+        (demo ? '<br><span style="font-size:12px;color:var(--amber)">Demo mode — 20-second timer</span>' : '');
+
+      pollInterval = setInterval(fetchStatus, 2500);
+      fetchStatus();
+    } catch (e) {
+      alert('Could not start outreach. Is npm run dev running?');
+    }
+  }
+
+  function resetView() {
+    clearInterval(pollInterval);
+    workflowId  = null;
+    currentSlot = null;
+    document.getElementById('slot-form').classList.remove('hidden');
+    document.getElementById('slot-summary').classList.add('hidden');
+    document.getElementById('idle-state').classList.remove('hidden');
+    document.getElementById('live-view').classList.add('hidden');
+    document.getElementById('slot-date').value = '';
+    document.getElementById('slot-time').value = '';
+    document.getElementById('offer-section').innerHTML    = '';
+    document.getElementById('event-log').innerHTML        = '<div class="empty-state">Events will appear here.</div>';
+    document.getElementById('contacted-panel').classList.add('hidden');
+    document.getElementById('queue-panel').classList.add('hidden');
+    updatePreview();
+  }
+
+  async function fetchStatus() {
+    try {
+      const res   = await fetch('/api/status/' + workflowId);
+      const state = await res.json();
+      render(state);
+      if (state.status !== 'in_progress') clearInterval(pollInterval);
+    } catch (e) { /* retry silently */ }
+  }
+
+  function fmtTime(iso) {
+    return new Date(iso).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', second:'2-digit' });
+  }
+
+  function render(state) {
+    const sh   = document.getElementById('status-header');
+    const st   = document.getElementById('status-text');
+    sh.className = 'status-header';
+    if (state.status === 'in_progress') { sh.classList.add('sh-progress'); st.textContent = 'Outreach in progress'; }
+    else if (state.status === 'filled') { sh.classList.add('sh-filled');   st.textContent = 'Slot filled'; }
+    else                                { sh.classList.add('sh-unfilled'); st.textContent = 'Slot went unfilled'; }
+
+    const offerEl = document.getElementById('offer-section');
+    const offered = state.clients.find(c => c.status === 'offered');
+    const timeoutSecs = state.demoMode ? 20 : 900;
+
+    if (offered && state.status === 'in_progress') {
+      const elapsed   = state.offeredAt ? Math.floor((Date.now() - new Date(state.offeredAt).getTime()) / 1000) : 0;
+      const remaining = Math.max(0, timeoutSecs - elapsed);
+      const mins = Math.floor(remaining / 60);
+      const secs = String(remaining % 60).padStart(2, '0');
+      const link = `/respond.html?workflowId=${workflowId}&clientId=${offered.client.id}` +
+        `&clientName=${encodeURIComponent(offered.client.name)}&date=${currentSlot.date}` +
+        `&time=${encodeURIComponent(currentSlot.time)}&service=${encodeURIComponent(currentSlot.service)}` +
+        `&stylist=${encodeURIComponent(currentSlot.stylist)}`;
+
+      offerEl.innerHTML = `
+        <div class="offer-card">
+          <div class="offer-label">Offer currently with</div>
+          <div class="offer-name">${offered.client.name}</div>
+          <div class="offer-detail">${offered.client.service} · Prefers ${offered.client.stylist}</div>
+          <div class="offer-timer">⏱ ${mins}:${secs} remaining${state.demoMode ? ' (demo)' : ''}</div>
+          <div class="offer-link">Simulate: <a href="${link}" target="_blank">Open client response page →</a></div>
+        </div>`;
+    } else if (state.status === 'filled') {
+      offerEl.innerHTML = `
+        <div class="panel">
+          <div class="final-summary">
+            <div class="final-icon">✓</div>
+            <div class="final-title" style="color:var(--green)">${state.acceptedBy} confirmed</div>
+            <div class="final-sub">Accepted at ${fmtTime(state.acceptedAt)}<br>Slot is now filled — update the main calendar when ready.</div>
+          </div>
+        </div>`;
+    } else if (state.status === 'unfilled') {
+      offerEl.innerHTML = `
+        <div class="panel">
+          <div class="final-summary">
+            <div class="final-icon">📋</div>
+            <div class="final-title">Slot went unfilled</div>
+            <div class="final-sub">All eligible clients were contacted and none claimed the opening.</div>
+          </div>
+        </div>`;
+    } else {
+      offerEl.innerHTML = '';
+    }
+
+    const contacted = state.clients.filter(c => ['declined','timed_out','accepted'].includes(c.status));
+    const cPanel    = document.getElementById('contacted-panel');
+    if (contacted.length) {
+      cPanel.classList.remove('hidden');
+      document.getElementById('contacted-list').innerHTML = contacted.map(c => `
+        <div class="client-item">
+          <span>${c.client.name}</span>
+          <span class="chip chip-${c.status.replace('_','-')}">${c.status === 'timed_out' ? 'Timed out' : c.status.charAt(0).toUpperCase() + c.status.slice(1)}</span>
+        </div>`).join('');
+    } else { cPanel.classList.add('hidden'); }
+
+    const queue  = state.clients.filter(c => c.status === 'waiting');
+    const qPanel = document.getElementById('queue-panel');
+    if (queue.length) {
+      qPanel.classList.remove('hidden');
+      document.getElementById('queue-list').innerHTML = queue.map(c => `
+        <div class="client-item">
+          <span>${c.client.name}</span>
+          <span class="chip chip-waiting">In queue</span>
+        </div>`).join('');
+    } else { qPanel.classList.add('hidden'); }
+
+    if (state.log && state.log.length) {
+      document.getElementById('event-log').innerHTML = [...state.log].reverse().map(e => `
+        <div class="log-entry">
+          <div class="log-dot"></div>
+          <div class="log-time">${fmtTime(e.time)}</div>
+          <div class="log-msg">${e.message}</div>
+        </div>`).join('');
+    }
+  }
+</script>
+</body>
+</html>

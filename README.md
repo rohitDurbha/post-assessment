@@ -1,69 +1,51 @@
-# Temporal post-assessment starter
+# Juniper Salon Waitlist System
 
-This repository provides a working local Temporal environment, API, Worker, and browser interface. The included neutral demo is intentionally unrelated to the customer’s final process. Use what you learn in the customer conversation to replace it.
+A waitlist outreach prototype built with Temporal for the Upskilling Together
+post-assessment. When a last-minute appointment opens at Juniper Salon, the
+system contacts eligible waitlisted clients one at a time, waits durably for
+each response, and confirms the slot the moment someone accepts.
 
-## Important: create a new public repository—do not fork
+## Requirements
 
-Your submission must be in a brand-new **public** GitHub repository. **Do not use GitHub’s Fork button.** Forks connect submissions through GitHub’s fork network and can make other participants’ work easier to locate.
+- Node.js 20 or newer
+- Docker Desktop (must be running before you start)
 
-Do not add `john-b-yang` or `vishakhpk` as collaborators. Because the repository is public, the assessment team can review it without write access.
-
-Before the timed assessment:
-
-1. Create a new **public** repository in your assigned GitHub organization. Do not initialize it with a README.
-2. Clone the starter:
-
-   ```bash
-   git clone <STARTER_REPOSITORY_URL> temporal-assessment
-   cd temporal-assessment
-   ```
-
-3. Point the clone at your new repository:
-
-   ```bash
-   git remote remove origin
-   git branch -M main
-   git remote add origin git@github.com:<YOUR_ORGANIZATION>/<YOUR_REPOSITORY>.git
-   git push -u origin main
-   ```
-
-4. Confirm that GitHub displays the **Public** label and does not say “forked from” another repository.
-
-If you accidentally create a fork, do not push assessment work to it. Create a new public repository, change your local `origin`, and ask the course team to remove the fork. Do not search for or view other participants’ assessment repositories.
-
-## Verify setup before the timed assessment
-
-Requirements: Node.js 20 or newer and Docker Desktop.
-
-```bash
-npm install
+## Run
 npm run dev
-```
 
-Open <http://localhost:3000>, run the demo, and confirm that it completes. You can inspect it in the Temporal Web UI at <http://localhost:8233>. Setup time does not count toward the assessment.
+Open the staff dashboard at http://localhost:3000
+Inspect all workflow executions at http://localhost:8233
 
-Other commands:
+## How to use
 
-```bash
-npm test          # Run the starter Workflow test without Docker
-npm run typecheck # Check TypeScript
-npm run stop      # Stop the local Temporal service
-```
+1. Fill in the open slot details on the left panel and click Notify Waitlist
+2. Toggle Demo mode on for a 20-second response window, or off for the real
+   15-minute window Lena described
+3. Use the Simulate link on the dashboard to open the client response page
+4. Accept or decline from the client page and watch the dashboard update live
 
-## Repository map
+## How Temporal is used
 
-- `src/workflows.ts` — durable Workflow logic and message handlers
-- `src/worker.ts` — Worker and Task Queue configuration
-- `src/api.ts` — browser-facing API and Temporal Client
-- `src/types.ts` — shared data types
-- `public/` — customer-facing interface
-- `tests/` — Workflow test example
+- Each outreach run is a single durable Workflow that owns the full offer
+  sequence from start to finish
+- Temporal timers enforce the 15-minute response deadline per client without
+  any polling or cron jobs
+- Signals carry accept and decline responses from the client page into the
+  running Workflow
+- A Query exposes the full live state so the staff dashboard can reflect what
+  Temporal knows without touching a database
+- The Workflow survives a server restart mid-outreach and resumes exactly
+  where it left off
 
-You may change any application file. Do not edit generated files in `node_modules`.
+## Notes
 
-## Documentation
+- Waitlist data is simulated with eight sample clients in src/workflows.ts
+- The client response page lives at public/respond.html and receives the
+  workflow ID and client ID as URL parameters
+- No changes to worker.ts are needed — it registers all exported workflows
+  automatically
 
-- [TypeScript developer guide](https://docs.temporal.io/develop/typescript)
-- [Workflows](https://docs.temporal.io/workflows)
-- [Activities](https://docs.temporal.io/activities)
-- [Signals, Queries, and Updates](https://docs.temporal.io/encyclopedia/workflow-message-passing)
+## Evidence
+
+A Temporal Web UI screenshot showing a completed workflow execution is saved
+under evidence/
